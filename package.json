@@ -1,5 +1,5 @@
 {
-  "name": "ts-node-template",
+  "name": "multi-tenant-api",
   "version": "1.0.0",
   "packageManager": "npm@11.18.0",
   "description": "",
