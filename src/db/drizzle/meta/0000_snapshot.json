@@ -1,0 +1,257 @@
+{
+  "id": "c33b2097-4d3a-4dba-8df1-763fec6507f1",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.references": {
+      "name": "references",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuid_generate_v4()"
+        },
+        "int": {
+          "name": "int",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "int1": {
+          "name": "int1",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 10
+        },
+        "int2": {
+          "name": "int2",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "boolean": {
+          "name": "boolean",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "text1": {
+          "name": "text1",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text2": {
+          "name": "text2",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "varchar1": {
+          "name": "varchar1",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "varchar2": {
+          "name": "varchar2",
+          "type": "varchar(256)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "char1": {
+          "name": "char1",
+          "type": "char",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "char2": {
+          "name": "char2",
+          "type": "char(256)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "numeric1": {
+          "name": "numeric1",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "numeric2": {
+          "name": "numeric2",
+          "type": "numeric(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "numeric3": {
+          "name": "numeric3",
+          "type": "numeric(100, 20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "json1": {
+          "name": "json1",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "json2": {
+          "name": "json2",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'{\"foo\":\"bar\"}'::json"
+        },
+        "jsonb1": {
+          "name": "jsonb1",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "jsonb2": {
+          "name": "jsonb2",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'{\"foo\":\"bar\"}'::jsonb"
+        },
+        "uuid1": {
+          "name": "uuid1",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uuid2": {
+          "name": "uuid2",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "gen_random_uuid()"
+        },
+        "time1": {
+          "name": "time1",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "numberArray": {
+          "name": "numberArray",
+          "type": "numeric[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stringArray1": {
+          "name": "stringArray1",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unique": {
+          "name": "unique",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stringArray2": {
+          "name": "stringArray2",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timestamp1": {
+          "name": "timestamp1",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "example_idx": {
+          "name": "example_idx",
+          "columns": [
+            {
+              "expression": "text2",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "example_search_index": {
+          "name": "example_search_index",
+          "columns": [
+            {
+              "expression": "(\n        setweight(to_tsvector('english', \"text1\"), 'A') ||\n        setweight(to_tsvector('english', coalesce(\"text2\", '')), 'B') ||\n        setweight(array_to_tsvector(coalesce(\"stringArray1\", ARRAY[]::text[])), 'C') ||\n        setweight(to_tsvector('english', coalesce(\"numeric1\"::text, '')), 'D') \n      )",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "references_unique_unique": {
+          "name": "references_unique_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "unique"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
