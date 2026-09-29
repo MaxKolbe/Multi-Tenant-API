@@ -8,6 +8,20 @@
       "when": 1785420840464,
       "tag": "0000_flippant_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790697747292,
+      "tag": "0001_warm_husk",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790697977098,
+      "tag": "0002_reflective_sauron",
+      "breakpoints": true
     }
   ]
 }
