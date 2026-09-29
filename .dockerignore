@@ -1,0 +1,43 @@
+
+# Git
+.git
+.gitignore
+
+# Environment files and secrets
+.env*
+!.env.example
+
+# Dependencies
+node_modules
+
+# Test files and output
+tests
+test
+__tests__
+coverage
+.nyc_output
+*.test.ts
+*.spec.ts
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Local build artifacts
+dist
+build
+out
+.next
+.turbo
+
+# Editor and operating system files
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Docker Compose overrides and local-only configuration
+docker-compose.override.yml

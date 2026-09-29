@@ -1,0 +1,52 @@
+
+services:
+  # One-off database migration service.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: build
+    env_file:
+      - .env.docker
+    command: ["npm", "run", "db:migrate"]
+    depends_on:
+      multi-tenant-db:
+        condition: service_healthy
+      
+  # Express API service.    
+  multi-tenant-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: multi-tenant-api
+    env_file:
+      - .env.docker
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # PostgreSQL database service.
+  multi-tenant-db:
+    image: postgres:18-alpine
+    container_name: multi-tenant-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-1234}
+      POSTGRES_DB: ${POSTGRES_DB:-tenant}
+    ports:
+      - "5433:5432"
+    volumes:
+      - multi-tenant-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  multi-tenant-db-data:

@@ -1,0 +1,48 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them and runs tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: Node.js CI
+
+on:
+  push:
+    branches: [ "ts-drizzle" ]
+
+  pull_request:
+    branches: [ "ts-drizzle" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    env: 
+      PG_DATABASE_TEST_URL: ${{ secrets.PG_DATABASE_TEST_URL }}
+      PG_DATABASE_DEV_URL: ${{ secrets.PG_DATABASE_TEST_URL }}
+      PG_DATABASE_PROD_URL: ${{ secrets.PG_DATABASE_TEST_URL}}
+      JWT_ACCESS_SECRET: ci-access-secret-at-least-thirty-two-characters 
+      JWT_REFRESH_SECRET: ci-refresh-secret-at-least-thirty-two-characters 
+      NODE_ENV: test
+
+    strategy:
+      matrix:
+        node-version: [lts/*]
+
+    steps:
+    - uses: actions/checkout@v4 # official Github Action that clones (checks out) your repo onto the runner/github server, making your project files available
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Install dependencies 
+      run: npm ci
+
+    - name: Run migrations
+      run: npx drizzle-kit migrate
+      
+    - name: seed database
+      run:  npm run db:seed:ci
+
+    - name: Run tests if test script is present
+      run:  npm test --if-present
