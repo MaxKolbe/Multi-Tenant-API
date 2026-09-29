@@ -7,6 +7,7 @@
   "scripts": {
     "build": "npm install --include=dev && npx tsc",
     "start": "node dist/index.js",
+    "dev:start": "node --env-file=.env dist/index.js",
     "dev": "tsx watch --env-file=.env src/index.ts",
     "watch": "tsc -w",
     "db:push": "drizzle-kit push",
