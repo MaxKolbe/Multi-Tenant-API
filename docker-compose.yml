@@ -24,8 +24,8 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      multi-tenant-db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # PostgreSQL database service.
   multi-tenant-db:
