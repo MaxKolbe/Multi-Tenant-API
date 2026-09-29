@@ -4,6 +4,7 @@ import { ValidationError } from "../lib/error.js";
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.string().default("3000"),
+  DB_SSL: z.string().default("false"),
   PG_DATABASE_PROD_URL: z.string("PG_DATABASE_PROD_URL is missing"),
   PG_DATABASE_DEV_URL: z.string().default("postgresql://user:password@localhost:5432/database"),
   PG_DATABASE_TEST_URL: z.string("PG_DATABASE_TEST_URL is missing"),

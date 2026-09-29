@@ -13,7 +13,7 @@ const dburl = dbMap.get(env.NODE_ENV);
 
 const pool = new Pool({
   connectionString: dburl,
-  ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  ssl: env.DB_SSL === "true" ? { rejectUnauthorized: false } : false,
 });
 
 export async function connectDatabase() {

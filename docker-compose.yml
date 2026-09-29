@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
       target: build
     env_file:
-      - .env
+      - .env.docker
     command: ["npm", "run", "db:migrate"]
     depends_on:
       multi-tenant-db:
@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile
     container_name: multi-tenant-api
     env_file:
-      - .env
+      - .env.docker
     ports:
       - "3000:3000"
     depends_on:
