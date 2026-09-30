@@ -1,4 +1,4 @@
-import { referenceTable } from "../../db/models/example.js";
+import { organizations, users, tasks } from "../../db/models/index.js";
 import logger from "../../configs/logger.config.js";
 import db from "../../db/db.js";
 
@@ -6,7 +6,9 @@ import db from "../../db/db.js";
 export const clearTables = async () => {
   try {
     logger.info("Clearing tables...");
-    await db.delete(referenceTable);
+    await db.delete(tasks);
+    await db.delete(users);
+    await db.delete(organizations);
     logger.info("Tables cleared :)");
   } catch (error: any) {
     logger.error("Could not delete all tables", {

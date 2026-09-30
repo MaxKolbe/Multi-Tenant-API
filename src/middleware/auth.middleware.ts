@@ -16,7 +16,7 @@ export const authenticate =
     try {
       const payload = verifyToken(token);
 
-      req.user = { id: payload.sub };
+      req.user = { id: payload.sub, name: payload.name, orgId: payload.orgId };
 
       next();
     } catch (error: unknown) {

@@ -1,0 +1,32 @@
+meta {
+  name: Delete Task
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/tasks/:taskId
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  Deletes a task by ID. Only tasks belonging to the user's organization can be deleted.
+  Returns 404 Not Found for non-existent or cross-tenant tasks.
+
+  ### Success Response
+  ```json
+  {
+    "success": true,
+    "message": "Task deleted successfully",
+    "data": null,
+    "meta": {
+      "correlationId": "uuid"
+    }
+  }
+  ```
+}

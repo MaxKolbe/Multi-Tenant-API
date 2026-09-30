@@ -1,0 +1,43 @@
+meta {
+  name: List Tasks
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tasks
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  Retrieves all tasks belonging to the authenticated user's organization.
+
+  ### Success Response
+  ```json
+  {
+    "success": true,
+    "message": "Tasks retrieved successfully",
+    "data": [
+      {
+        "id": "uuid",
+        "orgId": "uuid",
+        "createdBy": "uuid",
+        "title": "New Task",
+        "description": "Optional description",
+        "status": "pending",
+        "createdAt": "date-time",
+        "updatedAt": "date-time",
+        "deletedAt": null
+      }
+    ],
+    "meta": {
+      "correlationId": "uuid"
+    }
+  }
+  ```
+}
