@@ -16,6 +16,7 @@ const EnvSchema = z.object({
   REDIS_USERNAME: z.string().optional(),
   REDIS_PASSWORD: z.string().optional(),
   LOG_LEVEL: z.string().default("http"),
+  JWT_SECRET: z.string("JWT_SECRET is missing"),
   API_BASE_URL: z.string().default("http://localhost:3000"),
 });
 

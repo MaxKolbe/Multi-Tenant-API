@@ -15,7 +15,7 @@
     "db:studio": "drizzle-kit studio",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx --env-file=.env src/scripts/seed.ts",
-    "db:seed:ci": "tsx src/scripts/seed.ts", 
+    "db:seed:ci": "tsx src/scripts/seed.ts",
     "db:gen-mig": "drizzle-kit generate && drizzle-kit migrate",
     "dk:migrate": "docker compose run --build --rm migrate",
     "test": "vitest run --config src/configs/vitest.config.ts",
@@ -37,16 +37,19 @@
   "dependencies": {
     "@logtail/node": "^0.5.8",
     "@logtail/winston": "^0.5.8",
+    "bcrypt": "^6.0.0",
     "cors": "2.8.6",
     "drizzle-kit": "0.31.10",
     "drizzle-orm": "0.45.2",
     "express": "5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "pg": "8.20.0",
     "tsx": "4.21.0",
     "winston": "3.19.0",
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/cors": "2.8.19",
     "@types/express": "5.0.6",
     "@types/jsonwebtoken": "9.0.10",

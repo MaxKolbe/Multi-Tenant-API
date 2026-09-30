@@ -2,6 +2,7 @@ import { env } from "../configs/env.config.js";
 import logger from "../configs/logger.config.js";
 import db from "../db/db.js";
 import { organizations, users, tasks } from "../db/models/index.js";
+import bcrypt from "bcrypt";
 
 // Guard: Ensure seeding only happens in development/test environments
 if (env.NODE_ENV === "production") {
@@ -24,7 +25,7 @@ const SEED_ORGS = [
 ];
 
 // Fictional development hashes
-const DEV_PASSWORD_HASH = "dev_password_hash_never_use_in_prod";
+const DEV_PASSWORD_HASH = bcrypt.hashSync("password123", 10);
 
 const SEED_USERS = [
   {
