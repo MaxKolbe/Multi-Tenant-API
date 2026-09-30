@@ -1,16 +1,13 @@
-import path from "node:path";
 import { defineConfig } from "vitest/config";
 
-const configDir = import.meta.dirname;
-const rootDir = path.resolve(configDir, "../..");
-
 export default defineConfig({
-  envDir: rootDir,
+  envDir: import.meta.dirname,
   test: {
-    setupFiles: [path.resolve(configDir, "vitest.setup.ts")],
+    setupFiles: ["./vitest.setup.ts"],
     testTimeout: 10000,
     globals: true,
     environment: "node",
+    fileParallelism: false,
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

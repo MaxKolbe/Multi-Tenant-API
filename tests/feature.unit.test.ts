@@ -1,6 +1,6 @@
 import { clearTables, installExtensions } from "./helpers/setup.js";
 import { describe, it, expect, beforeEach } from "vitest";
-import db from "../db/db.js";
+import db from "../src/db/db.js";
 
 describe("example-feature-unit-test", () => {
   //   beforeEach(() => {
