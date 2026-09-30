@@ -9,42 +9,50 @@ import { eq, and } from "drizzle-orm";
 export const registerOrganization = async (data: RegisterBodyType, correlationId: string) => {
   const hashedPassword = await hashPassword(data.password);
 
-  const result = await db.transaction(async (tx) => {
-    // Create Organization
-    const [org] = await tx
-      .insert(organizations)
-      .values({
-        name: data.organizationName,
-        slug: data.organizationSlug,
-      })
-      .returning();
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Create Organization
+      const [org] = await tx
+        .insert(organizations)
+        .values({
+          name: data.organizationName,
+          slug: data.organizationSlug,
+        })
+        .returning();
 
-    if (!org) throw new Error("Failed to create organization");
+      if (!org) throw new Error("Failed to create organization");
 
-    // Create First User
-    const [user] = await tx
-      .insert(users)
-      .values({
-        orgId: org.id,
-        email: data.email,
-        passwordHash: hashedPassword,
-      })
-      .returning();
+      // Create First User
+      const [user] = await tx
+        .insert(users)
+        .values({
+          orgId: org.id,
+          email: data.email,
+          passwordHash: hashedPassword,
+        })
+        .returning();
 
-    if (!user) throw new Error("Failed to create user");
+      if (!user) throw new Error("Failed to create user");
 
-    return { org, user };
-  });
+      return { org, user };
+    });
 
-  return {
-    code: 201,
-    message: "Organization registered successfully",
-    data: {
-      organization: { id: result.org.id, name: result.org.name, slug: result.org.slug },
-      user: { id: result.user.id, email: result.user.email },
-    },
-    meta: { correlationId },
-  };
+    return {
+      code: 201,
+      message: "Organization registered successfully",
+      data: {
+        organization: { id: result.org.id, name: result.org.name, slug: result.org.slug },
+        user: { id: result.user.id, email: result.user.email },
+      },
+      meta: { correlationId },
+    };
+  } catch (error: any) {
+    // Postgres unique constraint violation (slug or email already exists)
+    if (error?.cause?.code === "23505") {
+      throw new ConflictError("Organization slug or email already exists");
+    }
+    throw error;
+  }
 };
 
 export const loginUser = async (data: LoginBodyType, correlationId: string) => {

@@ -7,7 +7,7 @@ export const authenticate =
   () => async (req: Request, res: Response, next: NextFunction) => {
     const header = req.headers["authorization"] as string;
 
-    if (!header || !header.startsWith("Bearer")) {
+    if (!header || !header.startsWith("Bearer ")) {
       throw new UnauthorizedError("No token provided");
     }
 
