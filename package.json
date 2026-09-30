@@ -17,6 +17,7 @@
     "db:seed": "tsx --env-file=.env src/scripts/seed.ts",
     "db:seed:ci": "tsx src/scripts/seed.ts", 
     "db:gen-mig": "drizzle-kit generate && drizzle-kit migrate",
+    "dk:migrate": "docker compose run --build --rm migrate",
     "test": "vitest run --config src/configs/vitest.config.ts",
     "test:watch": "vitest --config src/configs/vitest.config.ts",
     "test:coverage": "vitest run --coverage --config src/configs/vitest.config.ts"
