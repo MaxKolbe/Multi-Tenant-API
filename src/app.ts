@@ -3,6 +3,8 @@ import cors from "cors";
 import requestLogger from "./middleware/requestLogger.middleware.js";
 import errorHandler from "./middleware/errorHandler.middleware.js";
 import healthRouter from "./modules/health/health.routes.js";
+import authRouter from "./modules/auth/auth.routes.js";
+import tasksRouter from "./modules/tasks/tasks.routes.js";
 import { env } from "./configs/env.config.js";
 
 const app = express();
@@ -31,6 +33,8 @@ app.use(cors(corsOptions));
 app.use(requestLogger);
 
 app.use("/api/v1/health", healthRouter);
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/tasks", tasksRouter);
 
 // HANDLER FOR UNKNOWN ROUTES
 app.use((req, res) => {

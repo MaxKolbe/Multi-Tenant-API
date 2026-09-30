@@ -10,8 +10,7 @@
 
     // For nodejs:
     "lib": ["esnext"],
-    "types": ["node"],
-    // and npm install -D @types/node
+    "types": ["node", "vitest/globals"],
  
     "moduleResolution": "nodenext", // Resolve modules using Node.js style
     "esModuleInterop": true, // Enables interop between ES modules and CommonJS
@@ -23,11 +22,11 @@
 
     // Recommended Options
     "strict": true,
-    "jsx": "react-jsx",
     "isolatedModules": true,
     // "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
     "skipLibCheck": true
   },
-  "exclude": ["drizzle.config.ts"]
+  "include": ["src"],
+  "exclude": ["drizzle.config.ts", "vitest.config.ts", "vitest.setup.ts", "tests"]
 }

@@ -1,0 +1,49 @@
+meta {
+  name: Update Task
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v1/tasks/:taskId
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "title": "Updated Task",
+    "status": "in_progress"
+  }
+}
+
+docs {
+  Updates a task by ID. Only tasks belonging to the user's organization can be modified.
+  Returns 404 Not Found for non-existent or cross-tenant tasks.
+
+  ### Success Response
+  ```json
+  {
+    "success": true,
+    "message": "Task updated successfully",
+    "data": {
+      "id": "uuid",
+      "orgId": "uuid",
+      "createdBy": "uuid",
+      "title": "Updated Task",
+      "description": "Optional description",
+      "status": "in_progress",
+      "createdAt": "date-time",
+      "updatedAt": "date-time",
+      "deletedAt": null
+    },
+    "meta": {
+      "correlationId": "uuid"
+    }
+  }
+  ```
+}

@@ -1,0 +1,53 @@
+meta {
+  name: Get Task
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tasks/:taskId
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  Retrieves a single task by ID.
+  Enforces a strict tenant boundary: returns a 404 Not Found if the task does not exist OR if it belongs to another organization.
+
+  ### Success Response
+  ```json
+  {
+    "success": true,
+    "message": "Task retrieved successfully",
+    "data": {
+      "id": "uuid",
+      "orgId": "uuid",
+      "createdBy": "uuid",
+      "title": "New Task",
+      "description": "Optional description",
+      "status": "pending",
+      "createdAt": "date-time",
+      "updatedAt": "date-time",
+      "deletedAt": null
+    },
+    "meta": {
+      "correlationId": "uuid"
+    }
+  }
+  ```
+
+  ### Error Response (Not Found)
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "NOT_FOUND",
+      "message": "Task not found"
+    }
+  }
+  ```
+}
