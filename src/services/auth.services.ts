@@ -4,7 +4,8 @@ import { hashPassword, verifyPassword } from "../utils/password.util.js";
 import { generateToken } from "../utils/token.util.js";
 import { ConflictError, UnauthorizedError } from "../lib/error.js";
 import { RegisterBodyType, LoginBodyType } from "../modules/auth/auth.schema.js";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { withTenantContext } from "../lib/tenant.js";
 
 export const registerOrganization = async (data: RegisterBodyType, correlationId: string) => {
   const hashedPassword = await hashPassword(data.password);
@@ -22,22 +23,25 @@ export const registerOrganization = async (data: RegisterBodyType, correlationId
 
       if (!org) throw new Error("Failed to create organization");
 
-      // Set tenant context for user creation in transaction
-      await tx.execute(sql`SELECT set_config('app.current_org', ${org.id}, true);`);
+      // Set tenant context and create First User inside the same transaction
+      return withTenantContext(
+        org.id,
+        async (tenantTx) => {
+          const [user] = await tenantTx
+            .insert(users)
+            .values({
+              orgId: org.id,
+              email: data.email,
+              passwordHash: hashedPassword,
+            })
+            .returning();
 
-      // Create First User
-      const [user] = await tx
-        .insert(users)
-        .values({
-          orgId: org.id,
-          email: data.email,
-          passwordHash: hashedPassword,
-        })
-        .returning();
+          if (!user) throw new Error("Failed to create user");
 
-      if (!user) throw new Error("Failed to create user");
-
-      return { org, user };
+          return { org, user };
+        },
+        tx
+      );
     });
 
     return {
@@ -71,40 +75,41 @@ export const loginUser = async (data: LoginBodyType, correlationId: string) => {
       throw new UnauthorizedError("Invalid credentials");
     }
 
-    // Set tenant context for user lookup
-    await tx.execute(sql`SELECT set_config('app.current_org', ${org.id}, true);`);
+    // Set tenant context for user lookup inside the same transaction
+    return withTenantContext(
+      org.id,
+      async (tenantTx) => {
+        const [user] = await tenantTx
+          .select()
+          .from(users)
+          .where(and(eq(users.orgId, org.id), eq(users.email, data.email)))
+          .limit(1);
 
-    // Find user by orgId and email
-    const [user] = await tx
-      .select()
-      .from(users)
-      .where(and(eq(users.orgId, org.id), eq(users.email, data.email)))
-      .limit(1);
+        if (!user) {
+          throw new UnauthorizedError("Invalid credentials");
+        }
 
-    if (!user) {
-      throw new UnauthorizedError("Invalid credentials");
-    }
+        const isValidPassword = await verifyPassword(data.password, user.passwordHash);
+        if (!isValidPassword) {
+          throw new UnauthorizedError("Invalid credentials");
+        }
 
-    // Verify password
-    const isValidPassword = await verifyPassword(data.password, user.passwordHash);
-    if (!isValidPassword) {
-      throw new UnauthorizedError("Invalid credentials");
-    }
+        const accessToken = generateToken({
+          id: user.id,
+          name: user.email,
+          orgId: org.id,
+        });
 
-    // Generate JWT
-    const accessToken = generateToken({
-      id: user.id,
-      name: user.email,
-      orgId: org.id,
-    });
-
-    return {
-      code: 200,
-      message: "Login successful",
-      data: {
-        user: { id: user.id, email: user.email, orgId: user.orgId },
+        return {
+          code: 200,
+          message: "Login successful",
+          data: {
+            user: { id: user.id, email: user.email, orgId: user.orgId },
+          },
+          meta: { accessToken, correlationId },
+        };
       },
-      meta: { accessToken, correlationId },
-    };
+      tx
+    );
   });
 };

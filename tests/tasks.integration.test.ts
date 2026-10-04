@@ -6,6 +6,7 @@ import { clearTables } from "./helpers/setup.js";
 import { testDb, closeTestDb } from "./helpers/testDb.js";
 import { tasks } from "../src/db/models/index.js";
 import { eq } from "drizzle-orm";
+import { withTenantContext } from "../src/lib/tenant.js";
 
 describe("Tasks API", () => {
   beforeEach(async () => {
@@ -52,9 +53,11 @@ describe("Tasks API", () => {
     expect(res.body.data.status).toBe("pending");
 
     // Verify in DB
-    const [task] = await testDb.select().from(tasks).where(eq(tasks.id, res.body.data.id));
-    expect(task!.orgId).toBe(tenantA.orgId);
-    expect(task!.createdBy).toBe(tenantA.userId);
+    await withTenantContext(tenantA.orgId, async (tx) => {
+      const [task] = await tx.select().from(tasks).where(eq(tasks.id, res.body.data.id));
+      expect(task!.orgId).toBe(tenantA.orgId);
+      expect(task!.createdBy).toBe(tenantA.userId);
+    });
   });
 
   it("should prevent tenant spoofing on creation", async () => {
@@ -73,8 +76,10 @@ describe("Tasks API", () => {
     expect(res.body.data.createdBy).toBe(tenantA.userId);
 
     // Verify in DB
-    const [task] = await testDb.select().from(tasks).where(eq(tasks.id, res.body.data.id));
-    expect(task!.orgId).toBe(tenantA.orgId);
+    await withTenantContext(tenantA.orgId, async (tx) => {
+      const [task] = await tx.select().from(tasks).where(eq(tasks.id, res.body.data.id));
+      expect(task!.orgId).toBe(tenantA.orgId);
+    });
   });
 
   it("should list only tasks belonging to the authenticated tenant", async () => {
@@ -172,8 +177,10 @@ describe("Tasks API", () => {
     expect(res.status).toBe(404);
 
     // Verify task unchanged in DB
-    const [task] = await testDb.select().from(tasks).where(eq(tasks.id, resA.body.data.id));
-    expect(task!.title).toBe("Task A");
+    await withTenantContext(tenantA.orgId, async (tx) => {
+      const [task] = await tx.select().from(tasks).where(eq(tasks.id, resA.body.data.id));
+      expect(task!.title).toBe("Task A");
+    });
   });
 
   it("should delete a task successfully", async () => {
@@ -210,9 +217,11 @@ describe("Tasks API", () => {
     expect(res.status).toBe(404);
 
     // Verify task still exists in DB
-    const [task] = await testDb.select().from(tasks).where(eq(tasks.id, resA.body.data.id));
-    expect(task).toBeDefined();
-    expect(task!.title).toBe("Task A");
+    await withTenantContext(tenantA.orgId, async (tx) => {
+      const [task] = await tx.select().from(tasks).where(eq(tasks.id, resA.body.data.id));
+      expect(task).toBeDefined();
+      expect(task!.title).toBe("Task A");
+    });
   });
 
   it("should reject malformed task IDs", async () => {
