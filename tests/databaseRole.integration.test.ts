@@ -4,6 +4,7 @@ import { testDb, closeTestDb } from "./helpers/testDb.js";
 import { clearTables, installExtensions } from "./helpers/setup.js";
 import { sql } from "drizzle-orm";
 import { organizations, users, tasks } from "../src/db/models/index.js";
+import { withTenantContext } from "../src/lib/tenant.js";
 
 describe("Database Restricted Role Integration & Security Verification", () => {
   beforeAll(async () => {
@@ -55,7 +56,7 @@ describe("Database Restricted Role Integration & Security Verification", () => {
   });
 
   it("should verify app_runtime can perform standard CRUD operations", async () => {
-    // INSERT
+    // INSERT Organization
     const [org] = await db
       .insert(organizations)
       .values({ name: "Role Verification Org", slug: "role-verif-org" })
@@ -63,22 +64,25 @@ describe("Database Restricted Role Integration & Security Verification", () => {
     expect(org).toBeDefined();
     expect(org!.name).toBe("Role Verification Org");
 
-    // SELECT
-    const foundOrgs = await db.select().from(organizations).where(sql`id = ${org!.id}`);
-    expect(foundOrgs.length).toBe(1);
+    await withTenantContext(org!.id, async (tx) => {
+      // SELECT
+      const foundOrgs = await tx.select().from(organizations).where(sql`id = ${org!.id}`);
+      expect(foundOrgs.length).toBe(1);
 
-    // UPDATE
-    const [updatedOrg] = await db
-      .update(organizations)
-      .set({ name: "Updated Role Org" })
-      .where(sql`id = ${org!.id}`)
-      .returning();
-    expect(updatedOrg!.name).toBe("Updated Role Org");
+      // UPDATE
+      const [updatedOrg] = await tx
+        .update(organizations)
+        .set({ name: "Updated Role Org" })
+        .where(sql`id = ${org!.id}`)
+        .returning();
+      expect(updatedOrg).toBeDefined();
+      expect(updatedOrg!.name).toBe("Updated Role Org");
 
-    // DELETE
-    await db.delete(organizations).where(sql`id = ${org!.id}`);
-    const remaining = await db.select().from(organizations).where(sql`id = ${org!.id}`);
-    expect(remaining.length).toBe(0);
+      // DELETE
+      await tx.delete(organizations).where(sql`id = ${org!.id}`);
+      const remaining = await tx.select().from(organizations).where(sql`id = ${org!.id}`);
+      expect(remaining.length).toBe(0);
+    });
   });
 
   it("should reject CREATE TABLE operations from app_runtime", async () => {
