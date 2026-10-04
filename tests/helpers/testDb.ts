@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { env } from "../../src/configs/env.config.js";
 import { Pool } from "pg";
 
-const testDbUrl = env.PG_DATABASE_TEST_URL;
+const testDbUrl = env.MIGRATION_DB_URL;
 
 if (!testDbUrl) {
   throw new Error("Test database URL is not configured. Tests cannot run.");

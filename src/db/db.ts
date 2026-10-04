@@ -4,12 +4,7 @@ import { env } from "../configs/env.config.js";
 import { Pool, PoolClient } from "pg";
 import logger from "../configs/logger.config.js";
 
-const dbMap = new Map([
-  ["development", env.PG_DATABASE_DEV_URL],
-  ["test", env.PG_DATABASE_TEST_URL],
-  ["production", env.PG_DATABASE_PROD_URL],
-]);
-const dburl = dbMap.get(env.NODE_ENV);
+const dburl = env.APP_DB_URL;
 
 const pool = new Pool({
   connectionString: dburl,
