@@ -127,15 +127,17 @@ describe("PostgreSQL Row-Level Security (RLS) & Tenant Isolation Policies", () =
       taskBId = res.data.id;
     });
 
-    it("should prevent Tenant A from selecting Tenant B's tasks", async () => {
+    it("should prevent Tenant A from selecting Tenant B's task by ID alone (no org_id predicate)", async () => {
       await withTenantContext(orgAId, async (tx) => {
+        // Deliberately unfiltered query: WHERE id = taskBId (no org_id filter)
         const result = await tx.select().from(tasks).where(eq(tasks.id, taskBId));
         expect(result.length).toBe(0);
       });
     });
 
-    it("should prevent Tenant A from updating Tenant B's tasks", async () => {
+    it("should prevent Tenant A from updating Tenant B's task by ID alone (no org_id predicate)", async () => {
       await withTenantContext(orgAId, async (tx) => {
+        // Deliberately unfiltered query: WHERE id = taskBId (no org_id filter)
         const updated = await tx
           .update(tasks)
           .set({ title: "Hacked Title" })
@@ -145,10 +147,21 @@ describe("PostgreSQL Row-Level Security (RLS) & Tenant Isolation Policies", () =
       });
     });
 
-    it("should prevent Tenant A from deleting Tenant B's tasks", async () => {
+    it("should prevent Tenant A from deleting Tenant B's task by ID alone (no org_id predicate)", async () => {
       await withTenantContext(orgAId, async (tx) => {
+        // Deliberately unfiltered query: WHERE id = taskBId (no org_id filter)
         const deleted = await tx.delete(tasks).where(eq(tasks.id, taskBId)).returning();
         expect(deleted.length).toBe(0);
+      });
+    });
+
+    it("should allow Tenant B to select its own task by ID alone (no org_id predicate) when under Tenant B context", async () => {
+      await withTenantContext(orgBId, async (tx) => {
+        // Deliberately unfiltered query: WHERE id = taskBId (no org_id filter)
+        const result = await tx.select().from(tasks).where(eq(tasks.id, taskBId));
+        expect(result.length).toBe(1);
+        expect(result[0].id).toBe(taskBId);
+        expect(result[0].title).toBe("Protected Tenant B Task");
       });
     });
 
