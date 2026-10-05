@@ -245,4 +245,89 @@ describe("Tasks API", () => {
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
   });
+
+  describe("automatic updated_at trigger and default timestamp", () => {
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    it("should populate updated_at with initial timestamp on creation via column default", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+
+      const res = await request(app)
+        .post("/api/v1/tasks")
+        .set("Authorization", `Bearer ${tenantA.token}`)
+        .send({ title: "Task for initial updated_at" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.updatedAt).toBeDefined();
+
+      const initialUpdatedAt = new Date(res.body.data.updatedAt).getTime();
+      expect(isNaN(initialUpdatedAt)).toBe(false);
+      expect(initialUpdatedAt).toBeGreaterThan(0);
+
+      // Verify directly from DB
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const [dbTask] = await tx.select().from(tasks).where(eq(tasks.id, res.body.data.id));
+        expect(dbTask!.updatedAt).toBeDefined();
+        expect(dbTask!.updatedAt.getTime()).toBe(initialUpdatedAt);
+      });
+    });
+
+    it("should refresh updated_at when updating a task, ensuring new timestamp is later than original", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+
+      const createRes = await request(app)
+        .post("/api/v1/tasks")
+        .set("Authorization", `Bearer ${tenantA.token}`)
+        .send({ title: "Initial Title" });
+
+      const initialUpdatedAt = new Date(createRes.body.data.updatedAt).getTime();
+
+      // Small delay for deterministic timestamp comparison
+      await delay(50);
+
+      const updateRes = await request(app)
+        .put(`/api/v1/tasks/${createRes.body.data.id}`)
+        .set("Authorization", `Bearer ${tenantA.token}`)
+        .send({ title: "New Title" });
+
+      expect(updateRes.status).toBe(200);
+      const updatedTimestamp = new Date(updateRes.body.data.updatedAt).getTime();
+      expect(updatedTimestamp).toBeGreaterThan(initialUpdatedAt);
+
+      // Verify via direct DB query
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const [dbTask] = await tx.select().from(tasks).where(eq(tasks.id, createRes.body.data.id));
+        expect(dbTask!.updatedAt.getTime()).toBe(updatedTimestamp);
+        expect(dbTask!.updatedAt.getTime()).toBeGreaterThan(initialUpdatedAt);
+      });
+    });
+
+    it("should refresh updated_at even when updating a field to the same value (firing on every update)", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+
+      const createRes = await request(app)
+        .post("/api/v1/tasks")
+        .set("Authorization", `Bearer ${tenantA.token}`)
+        .send({ title: "Same Value Title" });
+
+      const initialTimestamp = new Date(createRes.body.data.updatedAt).getTime();
+
+      await delay(50);
+
+      // Perform a direct DB update without specifying updatedAt, setting title to the exact same value
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        await tx
+          .update(tasks)
+          .set({ title: "Same Value Title" })
+          .where(eq(tasks.id, createRes.body.data.id));
+      });
+
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const [dbTask] = await tx.select().from(tasks).where(eq(tasks.id, createRes.body.data.id));
+        const newTimestamp = dbTask!.updatedAt.getTime();
+        expect(newTimestamp).toBeGreaterThan(initialTimestamp);
+      });
+    });
+  });
 });
+
