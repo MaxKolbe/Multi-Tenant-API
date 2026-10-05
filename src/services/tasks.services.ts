@@ -1,16 +1,17 @@
-import db from "../db/db.js";
 import { tasks } from "../db/models/index.js";
 import { NotFoundError } from "../lib/error.js";
 import { CreateTaskBodyType, UpdateTaskBodyType } from "../modules/tasks/tasks.schema.js";
 import { and, eq } from "drizzle-orm";
+import { DbTransaction } from "../lib/tenant.js";
 
 export const createTask = async (
   orgId: string,
   userId: string,
   data: CreateTaskBodyType,
-  correlationId: string
+  correlationId: string,
+  tx: DbTransaction
 ) => {
-  const [task] = await db
+  const [task] = await tx
     .insert(tasks)
     .values({
       orgId,
@@ -29,8 +30,12 @@ export const createTask = async (
   };
 };
 
-export const listTasks = async (orgId: string, correlationId: string) => {
-  const allTasks = await db
+export const listTasks = async (
+  orgId: string,
+  correlationId: string,
+  tx: DbTransaction
+) => {
+  const allTasks = await tx
     .select()
     .from(tasks)
     .where(eq(tasks.orgId, orgId));
@@ -43,8 +48,13 @@ export const listTasks = async (orgId: string, correlationId: string) => {
   };
 };
 
-export const getTask = async (orgId: string, taskId: string, correlationId: string) => {
-  const [task] = await db
+export const getTask = async (
+  orgId: string,
+  taskId: string,
+  correlationId: string,
+  tx: DbTransaction
+) => {
+  const [task] = await tx
     .select()
     .from(tasks)
     .where(and(eq(tasks.id, taskId), eq(tasks.orgId, orgId)))
@@ -66,9 +76,10 @@ export const updateTask = async (
   orgId: string,
   taskId: string,
   data: UpdateTaskBodyType,
-  correlationId: string
+  correlationId: string,
+  tx: DbTransaction
 ) => {
-  const [updatedTask] = await db
+  const [updatedTask] = await tx
     .update(tasks)
     .set({
       ...(data.title !== undefined && { title: data.title }),
@@ -91,8 +102,13 @@ export const updateTask = async (
   };
 };
 
-export const deleteTask = async (orgId: string, taskId: string, correlationId: string) => {
-  const [deletedTask] = await db
+export const deleteTask = async (
+  orgId: string,
+  taskId: string,
+  correlationId: string,
+  tx: DbTransaction
+) => {
+  const [deletedTask] = await tx
     .delete(tasks)
     .where(and(eq(tasks.id, taskId), eq(tasks.orgId, orgId)))
     .returning();
@@ -108,3 +124,6 @@ export const deleteTask = async (orgId: string, taskId: string, correlationId: s
     meta: { correlationId },
   };
 };
+
+
+
