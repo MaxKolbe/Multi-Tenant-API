@@ -11,11 +11,6 @@ ALTER TABLE "organizations" ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 ALTER TABLE "organizations" FORCE ROW LEVEL SECURITY;
 --> statement-breakpoint
-ALTER TABLE "references" ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE "references" FORCE ROW LEVEL SECURITY;
-
---> statement-breakpoint
 -- TASKS POLICIES
 CREATE POLICY tasks_select_policy ON "tasks"
   FOR SELECT
@@ -96,9 +91,3 @@ CREATE POLICY organizations_delete_policy ON "organizations"
   TO app_runtime
   USING (id = nullif(current_setting('app.current_org', true), '')::uuid);
 
---> statement-breakpoint
--- REFERENCES POLICIES (Shared global reference table)
-CREATE POLICY references_select_policy ON "references"
-  FOR SELECT
-  TO app_runtime
-  USING (true);

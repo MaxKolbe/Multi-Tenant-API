@@ -99,7 +99,7 @@ describe("Database Restricted Role Integration & Security Verification", () => {
 
   it("should reject DROP TABLE operations from app_runtime", async () => {
     await expect(
-      db.execute(sql`DROP TABLE references;`)
+      db.execute(sql`DROP TABLE tasks;`)
     ).rejects.toThrow();
   });
 

@@ -86,7 +86,7 @@ docker compose up -d multi-tenant-api
 - **`app_runtime` (Restricted Application Role)**: Used by the Express API application connection pool. Configured as `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`, `NOBYPASSRLS`. Does NOT own tables.
 
 ### Tenant Context & Row-Level Security (RLS)
-- **RLS Policy Enforcement**: RLS is enabled and forced (`FORCE ROW LEVEL SECURITY`) on `tasks`, `users`, `organizations`, and `references`.
+- **RLS Policy Enforcement**: RLS is enabled and forced (`FORCE ROW LEVEL SECURITY`) on `tasks`, `users`, and `organizations`.
 - **Tenant Context (`app.current_org`)**: Tenant context is established transaction-locally using `set_config('app.current_org', tenantId, true)`.
 - **Tenant Policy Expression**: Tenant-owned tables (`tasks`, `users`) enforce `org_id = nullif(current_setting('app.current_org', true), '')::uuid`.
 - **Missing Tenant Context Behavior**: When `app.current_org` is missing or empty, `nullif` resolves to `NULL`. Since `org_id = NULL` evaluates to `FALSE` (SQL three-valued logic), 0 rows are accessible, and all `INSERT`, `UPDATE`, and `DELETE` operations are rejected.
@@ -94,7 +94,6 @@ docker compose up -d multi-tenant-api
 ### Special Table Access Semantics
 - **`organizations` Table**: `organizations` allows `SELECT` when `app.current_org` matches OR when `app.current_org` is unset (allowing organization slug lookup during authentication). `INSERT` is permitted for new registration, while `UPDATE` and `DELETE` are restricted strictly to the current tenant ID (`id = app.current_org`).
 - **`users` Table & Authentication Flow**: Authentication requests locate the tenant organization slug first. Upon finding the organization ID, `loginUser` executes user retrieval inside a database transaction with `app.current_org` set to the resolved organization ID. This maintains strict `org_id = app.current_org` RLS isolation without needing broad access or `BYPASSRLS`.
-- **`references` Table**: Global shared reference lookup table accessible via `SELECT` to `app_runtime`, with `INSERT`, `UPDATE`, and `DELETE` disallowed for `app_runtime`.
 
 ### Security Boundary Testing
 - Integration test suites (`tests/databaseRole.integration.test.ts` and `tests/rlsPolicies.integration.test.ts`) connect directly as the restricted `app_runtime` database role to verify that cross-tenant access, tenant spoofing (`org_id` tampering), missing context queries, and organization boundary mutations are blocked directly at the PostgreSQL layer.

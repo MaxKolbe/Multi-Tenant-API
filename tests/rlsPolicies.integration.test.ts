@@ -3,7 +3,8 @@ import db from "../src/db/db.js";
 import { testDb, closeTestDb } from "./helpers/testDb.js";
 import { clearTables, installExtensions } from "./helpers/setup.js";
 import { withTenantContext } from "../src/lib/tenant.js";
-import { organizations, users, tasks, referenceTable } from "../src/db/models/index.js";
+import { organizations, users, tasks } from "../src/db/models/index.js";
+
 import { registerOrganization, loginUser } from "../src/services/auth.services.js";
 import { createTask, listTasks, getTask, updateTask, deleteTask } from "../src/services/tasks.services.ts";
 import { sql, eq } from "drizzle-orm";
@@ -282,7 +283,7 @@ describe("PostgreSQL Row-Level Security (RLS) & Tenant Isolation Policies", () =
     });
   });
 
-  describe("Organizations & Shared Reference Tables", () => {
+  describe("Organizations Table RLS", () => {
     it("should allow querying own organization row and block modifying another org", async () => {
       await withTenantContext(orgAId, async (tx) => {
         const [org] = await tx.select().from(organizations).where(eq(organizations.id, orgAId));
@@ -295,13 +296,6 @@ describe("PostgreSQL Row-Level Security (RLS) & Tenant Isolation Policies", () =
           .where(eq(organizations.id, orgBId))
           .returning();
         expect(updatedOther.length).toBe(0);
-      });
-    });
-
-    it("should allow selecting shared reference table", async () => {
-      await withTenantContext(orgAId, async (tx) => {
-        const refs = await tx.select().from(referenceTable);
-        expect(Array.isArray(refs)).toBe(true);
       });
     });
   });
