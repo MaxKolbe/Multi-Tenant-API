@@ -5,7 +5,7 @@ import { clearTables } from "./helpers/setup.js";
 
 import { testDb, closeTestDb } from "./helpers/testDb.js";
 import { tasks, auditLogs } from "../src/db/models/index.js";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { withTenantContext } from "../src/lib/tenant.js";
 
 describe("Tasks API", () => {
@@ -468,7 +468,126 @@ describe("Tasks API", () => {
         expect(logs.length).toBe(1);
       });
     });
+
+    it("should not create audit records when a cross-tenant operation is rejected", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+      const tenantB = await setupTenant("Org B", "b@b.com");
+
+      // Tenant A creates a task
+      const createRes = await request(app)
+        .post("/api/v1/tasks")
+        .set("Authorization", `Bearer ${tenantA.token}`)
+        .send({ title: "Org A Task" });
+      const taskId = createRes.body.data.id;
+
+      // Tenant B attempts to update Org A's task
+      const updateRes = await request(app)
+        .put(`/api/v1/tasks/${taskId}`)
+        .set("Authorization", `Bearer ${tenantB.token}`)
+        .send({ title: "Hacked Title" });
+
+      expect(updateRes.status).toBe(404);
+
+      // Verify no UPDATE audit record was created for taskId
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const logs = await tx
+          .select()
+          .from(auditLogs)
+          .where(and(eq(auditLogs.recordId, taskId), eq(auditLogs.action, "UPDATE")));
+        expect(logs.length).toBe(0);
+      });
+    });
+
+    it("should rollback audit records when the task mutation transaction is rolled back", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+
+      let rolledBackTaskId: string | undefined;
+
+      try {
+        await withTenantContext(tenantA.orgId, async (tx) => {
+          const [task] = await tx
+            .insert(tasks)
+            .values({
+              orgId: tenantA.orgId,
+              createdBy: tenantA.userId,
+              title: "Rollback Task",
+            })
+            .returning();
+          rolledBackTaskId = task.id;
+          throw new Error("Forced transaction rollback");
+        }, undefined, tenantA.userId);
+      } catch (err: any) {
+        expect(err.message).toBe("Forced transaction rollback");
+      }
+
+      expect(rolledBackTaskId).toBeDefined();
+
+      // Verify neither the task nor its audit record exists
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const dbTasks = await tx.select().from(tasks).where(eq(tasks.id, rolledBackTaskId!));
+        expect(dbTasks.length).toBe(0);
+
+        const logs = await tx.select().from(auditLogs).where(eq(auditLogs.recordId, rolledBackTaskId!));
+        expect(logs.length).toBe(0);
+      });
+    });
+
+    it("should enforce direct audit-table privilege and RLS immutability (prevent direct UPDATE and DELETE)", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+
+      const createRes = await request(app)
+        .post("/api/v1/tasks")
+        .set("Authorization", `Bearer ${tenantA.token}`)
+        .send({ title: "Audit Immutability Test Task" });
+
+      const taskId = createRes.body.data.id;
+
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const [log] = await tx.select().from(auditLogs).where(eq(auditLogs.recordId, taskId));
+        expect(log).toBeDefined();
+
+        // Attempt direct UPDATE on audit_logs (should update 0 rows due to lack of UPDATE policy for app_runtime)
+        const updateResult = await tx
+          .update(auditLogs)
+          .set({ action: "HACKED" })
+          .where(eq(auditLogs.id, log.id))
+          .returning();
+        expect(updateResult.length).toBe(0);
+
+        // Attempt direct DELETE on audit_logs (should delete 0 rows due to lack of DELETE policy for app_runtime)
+        const deleteResult = await tx
+          .delete(auditLogs)
+          .where(eq(auditLogs.id, log.id))
+          .returning();
+        expect(deleteResult.length).toBe(0);
+
+        // Verify audit log remains unchanged
+        const [unmodifiedLog] = await tx.select().from(auditLogs).where(eq(auditLogs.id, log.id));
+        expect(unmodifiedLog.action).toBe("INSERT");
+      });
+    });
+
+    it("should prevent transaction context leakage across pool connections", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+
+      // Run transaction setting org and user context
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const orgRes = await tx.execute(sql`SELECT current_setting('app.current_org', true) as org;`);
+        const userRes = await tx.execute(sql`SELECT current_setting('app.current_user', true) as user;`);
+        expect((orgRes.rows[0] as any).org).toBe(tenantA.orgId);
+        expect((userRes.rows[0] as any).user).toBe(tenantA.userId);
+      }, undefined, tenantA.userId);
+
+      // Run another transaction without passing org or user context
+      await withTenantContext("", async (tx) => {
+        const orgRes = await tx.execute(sql`SELECT current_setting('app.current_org', true) as org;`);
+        const userRes = await tx.execute(sql`SELECT current_setting('app.current_user', true) as user;`);
+        expect((orgRes.rows[0] as any).org).toBe("");
+        expect((userRes.rows[0] as any).user).toBe("");
+      });
+    });
   });
 });
+
 
 
