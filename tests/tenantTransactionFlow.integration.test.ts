@@ -7,9 +7,6 @@ import { closeTestDb } from "./helpers/testDb.js";
 import { withTenantContext } from "../src/lib/tenant.js";
 import { tasks, organizations } from "../src/db/models/index.js";
 import { sql, eq } from "drizzle-orm";
-import { authenticate } from "../src/middleware/auth.middleware.js";
-import { tenantTransactionMiddleware } from "../src/middleware/tenant.middleware.js";
-import { createTask } from "../src/services/tasks.services.js";
 
 describe("Phase 3 Step 16: Transaction-Scoped Tenant Context & Pool Hygiene", () => {
   beforeAll(async () => {
@@ -186,7 +183,7 @@ describe("Phase 3 Step 16: Transaction-Scoped Tenant Context & Pool Hygiene", ()
     });
   });
 
-  it("should enforce HTTP request-level atomicity across multiple operations on req.db when downstream processing fails", async () => {
+  it("should enforce HTTP request-level atomicity across multiple operations when downstream processing fails", async () => {
     const tenant = await setupTenant("HTTP Atomicity Org", "httpatomicity@org.com");
 
     const res = await request(app)
@@ -197,8 +194,32 @@ describe("Phase 3 Step 16: Transaction-Scoped Tenant Context & Pool Hygiene", ()
     expect(res.status).toBe(500);
 
     await withTenantContext(tenant.orgId, async (tx) => {
-      const foundA = await tx.select().from(tasks).where(eq(tasks.title, "HTTP Task A"));
+      const foundA = await tx.select().from(tasks).where(eq(tasks.title, "HTTP Multi Task A"));
       expect(foundA.length).toBe(0);
     });
   });
+
+  it("should complete the database transaction before the HTTP response is written", async () => {
+    const tenant = await setupTenant("Pre Response Org", "preresponse@org.com");
+
+    const res = await request(app)
+      .post("/api/v1/tasks")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ title: "Pre Response Task", description: "Verifying tx completion before HTTP response" });
+
+    expect(res.status).toBe(201);
+
+    // Verify task is committed in DB upon response receipt
+    await withTenantContext(tenant.orgId, async (tx) => {
+      const [foundTask] = await tx.select().from(tasks).where(eq(tasks.id, res.body.data.id));
+      expect(foundTask).toBeDefined();
+      expect(foundTask.title).toBe("Pre Response Task");
+    });
+
+    // Verify connection pool is not pinned with active tenant context
+    const resOutside = await db.execute(sql`SELECT current_setting('app.current_org', true) as val;`);
+    const settingOutsideTx = (resOutside.rows[0] as any).val;
+    expect(settingOutsideTx === "" || settingOutsideTx === null).toBe(true);
+  });
 });
+

@@ -51,30 +51,42 @@ describe("PostgreSQL Row-Level Security (RLS) & Tenant Isolation Policies", () =
 
   describe("Tenant A Self Operations", () => {
     it("should allow Tenant A to insert, select, update, and delete its own tasks", async () => {
-      const createRes = await createTask(
-        orgAId,
-        userAId,
-        { title: "Tenant A Task 1", description: "Desc A" },
-        "corr-1"
+      const createRes = await withTenantContext(orgAId, (tx) =>
+        createTask(
+          orgAId,
+          userAId,
+          { title: "Tenant A Task 1", description: "Desc A" },
+          "corr-1",
+          tx
+        )
       );
       expect(createRes.code).toBe(201);
       const taskId = createRes.data.id;
 
-      const listRes = await listTasks(orgAId, "corr-2");
+      const listRes = await withTenantContext(orgAId, (tx) =>
+        listTasks(orgAId, "corr-2", tx)
+      );
       expect(listRes.data.some((t: any) => t.id === taskId)).toBe(true);
 
-      const getRes = await getTask(orgAId, taskId, "corr-3");
+      const getRes = await withTenantContext(orgAId, (tx) =>
+        getTask(orgAId, taskId, "corr-3", tx)
+      );
       expect(getRes.data.title).toBe("Tenant A Task 1");
 
-      const updateRes = await updateTask(
-        orgAId,
-        taskId,
-        { title: "Updated Tenant A Task 1" },
-        "corr-4"
+      const updateRes = await withTenantContext(orgAId, (tx) =>
+        updateTask(
+          orgAId,
+          taskId,
+          { title: "Updated Tenant A Task 1" },
+          "corr-4",
+          tx
+        )
       );
       expect(updateRes.data.title).toBe("Updated Tenant A Task 1");
 
-      const deleteRes = await deleteTask(orgAId, taskId, "corr-5");
+      const deleteRes = await withTenantContext(orgAId, (tx) =>
+        deleteTask(orgAId, taskId, "corr-5", tx)
+      );
       expect(deleteRes.code).toBe(200);
     });
 
@@ -89,27 +101,37 @@ describe("PostgreSQL Row-Level Security (RLS) & Tenant Isolation Policies", () =
 
   describe("Tenant B Self Operations", () => {
     it("should allow Tenant B to insert, select, update, and delete its own tasks", async () => {
-      const createRes = await createTask(
-        orgBId,
-        userBId,
-        { title: "Tenant B Task 1", description: "Desc B" },
-        "corr-6"
+      const createRes = await withTenantContext(orgBId, (tx) =>
+        createTask(
+          orgBId,
+          userBId,
+          { title: "Tenant B Task 1", description: "Desc B" },
+          "corr-6",
+          tx
+        )
       );
       expect(createRes.code).toBe(201);
       const taskId = createRes.data.id;
 
-      const listRes = await listTasks(orgBId, "corr-7");
+      const listRes = await withTenantContext(orgBId, (tx) =>
+        listTasks(orgBId, "corr-7", tx)
+      );
       expect(listRes.data.some((t: any) => t.id === taskId)).toBe(true);
 
-      const updateRes = await updateTask(
-        orgBId,
-        taskId,
-        { status: "completed" },
-        "corr-8"
+      const updateRes = await withTenantContext(orgBId, (tx) =>
+        updateTask(
+          orgBId,
+          taskId,
+          { status: "completed" },
+          "corr-8",
+          tx
+        )
       );
       expect(updateRes.data.status).toBe("completed");
 
-      const deleteRes = await deleteTask(orgBId, taskId, "corr-9");
+      const deleteRes = await withTenantContext(orgBId, (tx) =>
+        deleteTask(orgBId, taskId, "corr-9", tx)
+      );
       expect(deleteRes.code).toBe(200);
     });
   });
@@ -118,11 +140,14 @@ describe("PostgreSQL Row-Level Security (RLS) & Tenant Isolation Policies", () =
     let taskBId: string;
 
     beforeAll(async () => {
-      const res = await createTask(
-        orgBId,
-        userBId,
-        { title: "Protected Tenant B Task" },
-        "corr-b-setup"
+      const res = await withTenantContext(orgBId, (tx) =>
+        createTask(
+          orgBId,
+          userBId,
+          { title: "Protected Tenant B Task" },
+          "corr-b-setup",
+          tx
+        )
       );
       taskBId = res.data.id;
     });
@@ -178,11 +203,14 @@ describe("PostgreSQL Row-Level Security (RLS) & Tenant Isolation Policies", () =
     });
 
     it("should prevent Tenant A from altering its task's org_id to Tenant B's org_id", async () => {
-      const taskA = await createTask(
-        orgAId,
-        userAId,
-        { title: "Original Task A" },
-        "corr-org-change"
+      const taskA = await withTenantContext(orgAId, (tx) =>
+        createTask(
+          orgAId,
+          userAId,
+          { title: "Original Task A" },
+          "corr-org-change",
+          tx
+        )
       );
 
       await expect(
