@@ -4,8 +4,8 @@ import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { clearTables } from "./helpers/setup.js";
 
 import { testDb, closeTestDb } from "./helpers/testDb.js";
-import { tasks } from "../src/db/models/index.js";
-import { eq } from "drizzle-orm";
+import { tasks, auditLogs } from "../src/db/models/index.js";
+import { eq, and } from "drizzle-orm";
 import { withTenantContext } from "../src/lib/tenant.js";
 
 describe("Tasks API", () => {
@@ -329,5 +329,146 @@ describe("Tasks API", () => {
       });
     });
   });
+
+  describe("Task Auditing and Actor Context Propagation", () => {
+    it("should record an INSERT audit log with verified actor_id when a task is created", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+
+      const res = await request(app)
+        .post("/api/v1/tasks")
+        .set("Authorization", `Bearer ${tenantA.token}`)
+        .send({ title: "Audit Task 1", description: "Audit Desc 1", actorId: "00000000-0000-0000-0000-000000000000" });
+
+      expect(res.status).toBe(201);
+      const taskId = res.body.data.id;
+
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const logs = await tx.select().from(auditLogs).where(eq(auditLogs.recordId, taskId));
+        expect(logs.length).toBe(1);
+        const log = logs[0];
+        expect(log.action).toBe("INSERT");
+        expect(log.tableName).toBe("tasks");
+        expect(log.recordId).toBe(taskId);
+        expect(log.orgId).toBe(tenantA.orgId);
+        expect(log.actorId).toBe(tenantA.userId); // verified actor from JWT, spoofed actorId in body ignored!
+        expect(log.oldData).toBeNull();
+        expect(log.newData).toBeDefined();
+        expect((log.newData as any).title).toBe("Audit Task 1");
+      });
+    });
+
+    it("should record an UPDATE audit log with old_data, new_data, and updated_at trigger reflection", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+
+      const createRes = await request(app)
+        .post("/api/v1/tasks")
+        .set("Authorization", `Bearer ${tenantA.token}`)
+        .send({ title: "Original Title", description: "Original Desc" });
+
+      const taskId = createRes.body.data.id;
+
+      const updateRes = await request(app)
+        .put(`/api/v1/tasks/${taskId}`)
+        .set("Authorization", `Bearer ${tenantA.token}`)
+        .send({ title: "Updated Title" });
+
+      expect(updateRes.status).toBe(200);
+
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const logs = await tx
+          .select()
+          .from(auditLogs)
+          .where(and(eq(auditLogs.recordId, taskId), eq(auditLogs.action, "UPDATE")));
+        expect(logs.length).toBe(1);
+        const log = logs[0];
+        expect(log.action).toBe("UPDATE");
+        expect(log.orgId).toBe(tenantA.orgId);
+        expect(log.actorId).toBe(tenantA.userId);
+        expect((log.oldData as any).title).toBe("Original Title");
+        expect((log.newData as any).title).toBe("Updated Title");
+        expect((log.newData as any).updated_at).toBeDefined();
+      });
+    });
+
+    it("should record a DELETE audit log with old_data populated and new_data NULL", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+
+      const createRes = await request(app)
+        .post("/api/v1/tasks")
+        .set("Authorization", `Bearer ${tenantA.token}`)
+        .send({ title: "Task to delete" });
+
+      const taskId = createRes.body.data.id;
+
+      const delRes = await request(app)
+        .delete(`/api/v1/tasks/${taskId}`)
+        .set("Authorization", `Bearer ${tenantA.token}`);
+
+      expect(delRes.status).toBe(200);
+
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const logs = await tx
+          .select()
+          .from(auditLogs)
+          .where(and(eq(auditLogs.recordId, taskId), eq(auditLogs.action, "DELETE")));
+        expect(logs.length).toBe(1);
+        const log = logs[0];
+        expect(log.action).toBe("DELETE");
+        expect(log.orgId).toBe(tenantA.orgId);
+        expect(log.actorId).toBe(tenantA.userId);
+        expect((log.oldData as any).title).toBe("Task to delete");
+        expect(log.newData).toBeNull();
+      });
+    });
+
+    it("should set actor_id to NULL when database mutation occurs without actor context", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+
+      let taskId: string;
+      // Direct DB mutation with orgId context but WITHOUT actor context
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const [task] = await tx
+          .insert(tasks)
+          .values({
+            orgId: tenantA.orgId,
+            createdBy: tenantA.userId,
+            title: "System Task",
+          })
+          .returning();
+        taskId = task.id;
+      });
+
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const logs = await tx.select().from(auditLogs).where(eq(auditLogs.recordId, taskId!));
+        expect(logs.length).toBe(1);
+        expect(logs[0].actorId).toBeNull();
+      });
+    });
+
+    it("should enforce tenant isolation so tenants cannot read another tenant's audit logs via RLS", async () => {
+      const tenantA = await setupTenant("Org A", "a@a.com");
+      const tenantB = await setupTenant("Org B", "b@b.com");
+
+      const createRes = await request(app)
+        .post("/api/v1/tasks")
+        .set("Authorization", `Bearer ${tenantA.token}`)
+        .send({ title: "Org A Secret Task" });
+
+      const taskId = createRes.body.data.id;
+
+      // Tenant B queries audit_logs using Tenant B's context
+      await withTenantContext(tenantB.orgId, async (tx) => {
+        const logs = await tx.select().from(auditLogs).where(eq(auditLogs.recordId, taskId));
+        expect(logs.length).toBe(0);
+      });
+
+      // Tenant A queries audit_logs using Tenant A's context
+      await withTenantContext(tenantA.orgId, async (tx) => {
+        const logs = await tx.select().from(auditLogs).where(eq(auditLogs.recordId, taskId));
+        expect(logs.length).toBe(1);
+      });
+    });
+  });
 });
+
 
