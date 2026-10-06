@@ -1,101 +1,126 @@
 # Multi-Tenant-API
-A multi-tenant backend where several organizations share a database
 
-## Docker Setup Documentation
-
-This project uses Docker to containerize the Express API and the PostgreSQL database, simplifying both development and production-style deployments.
-
-### Docker Terminology
-- **Dockerfile:** A text file with instructions used to build a Docker image.
-- **Image:** A read-only blueprint containing the application code, runtime (Node.js), and dependencies.
-- **Container:** A running, isolated instance of a Docker image.
-- **Docker Compose:** A tool that uses a YAML file (`docker-compose.yml`) to define, configure, and manage multiple containers simultaneously.
-- **PostgreSQL container:** A container running the database engine itself.
-- **Docker volume:** A persistent storage mechanism managed by Docker that ensures data survives even if the container is removed.
-
-### 1. Docker Architecture
-The application is composed of three Docker services defined in `docker-compose.yml`:
-- **`multi-tenant-api`**: The main Express API service. It runs the compiled Node.js application.
-- **`multi-tenant-db`**: The PostgreSQL database service.
-- **`migrate`**: A one-off service used solely to run database migrations using Drizzle.
-
-**Database Connections & Port Mapping:**
-- Inside the Docker network, the API container communicates with the database using its service name and internal port: `multi-tenant-db:5432`.
-- For host access (e.g., connecting from your machine using a GUI client or running the API locally), the database is mapped to `localhost:5433` on your machine.
-
-### 2. Dockerfile
-The project uses a **multi-stage build** in `Dockerfile` to keep the final production image small and secure:
-1. **Build Stage (`build`)**: Uses `node:26-alpine3.23`. It installs all dependencies using `npm ci`, copies the source code, and compiles the TypeScript code into JavaScript using `npm run build`.
-2. **Production Runtime Stage (`runtime`)**: Also uses `node:26-alpine3.23`. It only copies the compiled `dist` directory, `package.json`, and the `node_modules` from the build stage. It then runs `npm prune --omit=dev` to remove unnecessary development dependencies. Finally, it sets a non-root `node` user and starts the API using `node dist/index.js`.
-
-### 3. PostgreSQL Configuration
-The `multi-tenant-db` service runs the `postgres:18-alpine` image.
-- **Default Credentials** (from `.env.example`):
-  - User: `postgres`
-  - Password: `1234`
-  - Database: `tenant`
-- **Persistence**: Data is saved to a named Docker volume called `multi-tenant-db-data` mounted at `/var/lib/postgresql`. This ensures your database records persist across container restarts and removals.
-> **⚠️ WARNING:** Running `docker compose down -v` will delete this volume and permanently erase all your local database data!
-
-### 4. Drizzle Migrations
-Migrations are not run automatically when the API starts. This separation of concerns prevents race conditions when running multiple API instances and ensures the database schema is fully updated before any API instance accepts traffic.
-- Migrations are run via the dedicated `migrate` container, which executes the `npm run db:migrate` command (triggering `drizzle-kit migrate`).
-
-### 5. Environment Variables
-Your `.env` file should configure database connection URLs based on how you run the application.
-- **Running entirely inside Docker:** The API uses `PG_DATABASE_DEV_URL=postgresql://postgres:1234@multi-tenant-db:5432/tenant` (as shown in `.env.example`).
-- **Running the API on your local machine (Host):** The API must connect via the exposed host port: `PG_DATABASE_DEV_URL=postgresql://postgres:1234@localhost:5433/tenant`.
-> **Note:** Never commit real secrets to the repository. Always use `.env.example` as a template for your local `.env` file.
-
-### 6. Development Workflow
-During active development, there is no hot-reloading Docker container for the API. Instead, the typical workflow is:
-1. Run only the PostgreSQL database via Docker: `docker compose up -d multi-tenant-db`
-2. Update your `.env` to connect via the host port: `PG_DATABASE_DEV_URL=postgresql://postgres:1234@localhost:5433/tenant`
-3. Run the API directly on your host machine with hot-reloading: `npm run dev`
-
-### 7. Production-Style Docker Workflow
-To test the production-style multi-container setup locally, use the following commands:
-
-**Quick Start**
-```bash
-# 1. Build the images
-docker compose build
-
-# 2. Start the PostgreSQL database in the background
-docker compose up -d multi-tenant-db
-
-# 3. Wait a few seconds for the database to become healthy, then run migrations
-docker compose run --rm migrate
-
-# 4. Start the compiled API service
-docker compose up -d multi-tenant-api
-```
-
-**Management Commands**
-- **Check running containers:** `docker compose ps`
-- **View logs:** `docker compose logs -f` (or target a specific service like `docker compose logs -f multi-tenant-api`)
-- **Stop services (preserves data):** `docker compose down`
-- **Stop services and WIPE DATA:** `docker compose down -v`
+A production-style multi-tenant backend built with Node.js, Express, TypeScript, Drizzle ORM, and PostgreSQL. Multiple organizations share a single database with strict tenant isolation enforced at the PostgreSQL layer via Row-Level Security (RLS), transaction-scoped context, and database audit triggers.
 
 ---
 
-## 8. Database Security, Roles & Row-Level Security (RLS)
+## 1. Prerequisites
 
-### Database Roles & Privilege Model
-- **`postgres` (Privileged Migration Owner)**: Used exclusively during database creation, schema migrations (`drizzle-kit migrate`), setup scripts, and test suite setup.
-- **`app_runtime` (Restricted Application Role)**: Used by the Express API application connection pool. Configured as `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`, `NOBYPASSRLS`. Does NOT own tables.
+Before running the application locally or via Docker, ensure you have installed:
+- **Docker & Docker Compose** (Docker Desktop or Docker Engine 24+)
+- **Node.js 26+ & npm** (optional, for running/testing on host machine)
 
-### Tenant Context & Row-Level Security (RLS)
-- **RLS Policy Enforcement**: RLS is enabled and forced (`FORCE ROW LEVEL SECURITY`) on `tasks`, `users`, and `organizations`.
-- **Tenant Context (`app.current_org`)**: Tenant context is established transaction-locally using `set_config('app.current_org', tenantId, true)`.
-- **Tenant Policy Expression**: Tenant-owned tables (`tasks`, `users`) enforce `org_id = nullif(current_setting('app.current_org', true), '')::uuid`.
-- **Missing Tenant Context Behavior**: When `app.current_org` is missing or empty, `nullif` resolves to `NULL`. Since `org_id = NULL` evaluates to `FALSE` (SQL three-valued logic), 0 rows are accessible, and all `INSERT`, `UPDATE`, and `DELETE` operations are rejected.
+### Environment Setup
+Create your local `.env` file from the provided template:
+```bash
+cp .env.example .env
+```
 
-### Special Table Access Semantics
-- **`organizations` Table**: `organizations` allows `SELECT` when `app.current_org` matches OR when `app.current_org` is unset (allowing organization slug lookup during authentication). `INSERT` is permitted for new registration, while `UPDATE` and `DELETE` are restricted strictly to the current tenant ID (`id = app.current_org`).
-- **`users` Table & Authentication Flow**: Authentication requests locate the tenant organization slug first. Upon finding the organization ID, `loginUser` executes user retrieval inside a database transaction with `app.current_org` set to the resolved organization ID. This maintains strict `org_id = app.current_org` RLS isolation without needing broad access or `BYPASSRLS`.
+### Environment Variables Overview
+| Variable | Description | Default / Example |
+| :--- | :--- | :--- |
+| `NODE_ENV` | Application environment (`development`, `production`, `test`) | `development` |
+| `PORT` | API HTTP port | `3000` |
+| `PG_MIGRATION_DEV_URL` | Privileged connection string for running migrations | `postgresql://postgres:1234@localhost:5433/tenant` |
+| `PG_APP_DEV_URL` | Restricted application connection string for Express API | `postgresql://app_runtime:app_password@localhost:5433/tenant` |
+| `DB_SSL` | Enable SSL for PostgreSQL connections | `false` |
+| `JWT_SECRET` | Secret key for JWT signing and verification | `qwerty` |
 
-### Security Boundary Testing
-- Integration test suites (`tests/databaseRole.integration.test.ts` and `tests/rlsPolicies.integration.test.ts`) connect directly as the restricted `app_runtime` database role to verify that cross-tenant access, tenant spoofing (`org_id` tampering), missing context queries, and organization boundary mutations are blocked directly at the PostgreSQL layer.
+> **⚠️ Security Note:** Never commit `.env` files or secret credentials to version control. Always maintain `.env.example` as the template for required configuration.
 
+---
 
+## 2. Docker Architecture & Workflow
+
+The application is containerized into three services defined in `docker-compose.yml`:
+1. **`multi-tenant-db`**: PostgreSQL 18 container running the database engine. Internal port `5432` mapped to host port `5433`.
+2. **`migrate`**: One-off migration container (`npm run db:migrate`) that waits for `multi-tenant-db` to become healthy before executing Drizzle schema migrations.
+3. **`multi-tenant-api`**: Express API service running the compiled Node.js application. Listens on container port `3000` mapped to host port `3000`. Starts only after `migrate` completes successfully.
+
+### Production-Style Docker Quick Start
+```bash
+# 1. Build Docker images
+docker compose build
+
+# 2. Start PostgreSQL database in background
+docker compose up -d multi-tenant-db
+
+# 3. Execute database migrations (waits for database healthcheck)
+docker compose run --rm migrate
+
+# 4. Start compiled Express API
+docker compose up -d multi-tenant-api
+```
+
+### Managing the Stack
+- **Check service status**: `docker compose ps`
+- **View container logs**: `docker compose logs -f` (or `docker compose logs -f multi-tenant-api`)
+- **Stop services (preserves data volume)**: `docker compose down`
+
+---
+
+## 3. Resetting Local Data
+
+Local database data is persisted in a named Docker volume called `multi-tenant-db-data`.
+
+To completely wipe and reset the local database state:
+```bash
+docker compose down -v
+```
+
+> **⚠️ WARNING:** `docker compose down -v` permanently deletes the `multi-tenant-db-data` volume and destroys all local database records!
+
+---
+
+## 4. Row-Level Security (RLS) & Security Architecture
+
+### Database Role Separation
+- **`postgres` (Privileged Migration Owner)**: Used exclusively during schema migrations (`drizzle-kit migrate`), role setup, and test suite initialization.
+- **`app_runtime` (Restricted Application Role)**: Used by Express API connection pools. Configured with `NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`. Does not own schema tables.
+
+### Tenant Isolation Model
+- **RLS Policy Enforcement**: RLS is enabled and forced (`FORCE ROW LEVEL SECURITY`) on `tasks`, `users`, `organizations`, and `audit_logs`.
+- **Transaction-Local Tenant Context (`app.current_org`)**: Established transaction-locally using `SELECT set_config('app.current_org', tenantId, true)` inside `withTenantContext(...)`.
+- **Policy Expression**: Tenant tables enforce `org_id = nullif(current_setting('app.current_org', true), '')::uuid`.
+- **Unset Context Protection**: When `app.current_org` is empty or missing, `nullif` resolves to `NULL`. Since `org_id = NULL` evaluates to `FALSE`, zero rows are returned and all mutation attempts are rejected.
+
+---
+
+## 5. Database Trigger Architecture
+
+### 1. Automatic `updated_at` Trigger (Step 21)
+- **Behavior**: PostgreSQL automatically updates `tasks.updated_at` to `NOW()` on every row `UPDATE` via trigger `set_tasks_updated_at` executing `update_tasks_updated_at()`.
+- **Ownership**: Timestamp management is fully owned by PostgreSQL.
+
+### 2. Task Audit Trigger (Steps 22–24)
+- **Behavior**: PostgreSQL automatically logs task mutations (`INSERT`, `UPDATE`, `DELETE`) into `audit_logs` via `AFTER INSERT OR UPDATE OR DELETE` trigger `tasks_audit_trigger` executing `audit_tasks_trigger()`.
+- **Actor Context Propagation (`app.current_user`)**:
+  - Express authentication middleware verifies incoming Bearer JWT tokens and sets `req.user.id`.
+  - Controllers pass the verified user ID to `withTenantContext(...)`, which executes `SELECT set_config('app.current_user', userId, true)` transaction-locally.
+  - The trigger extracts `app.current_user` to populate `actor_id` (storing `NULL` for unauthenticated/system operations).
+- **Snapshot Contents**:
+  - `INSERT`: `old_data = NULL`, `new_data = to_jsonb(NEW)`
+  - `UPDATE`: `old_data = to_jsonb(OLD)`, `new_data = to_jsonb(NEW)` (reflects `updated_at` trigger updates)
+  - `DELETE`: `old_data = to_jsonb(OLD)`, `new_data = NULL`
+- **Transactional Participation**: Audit log entries are written within the same PostgreSQL transaction as the task mutation. If a transaction rolls back, both the task mutation and its audit entry are atomicity-rolled back.
+
+---
+
+## 6. Known Limitations & Architectural Lessons
+
+1. **Transaction-Local Session Context**: PostgreSQL settings `app.current_org` and `app.current_user` are application-provided transaction-local settings (`is_local = true`). PostgreSQL does not independently verify JWT signatures; the security boundary relies on Express authentication middleware verifying JWT signatures before populating `req.user`.
+2. **Audit Log Immutability**: `audit_logs` permissions granted to `app_runtime` allow `SELECT` and `INSERT` only. No `UPDATE` or `DELETE` RLS policies exist for `app_runtime`, ensuring application tenants cannot modify or purge historical audit records.
+3. **Decoupled Audit Foreign Keys**: `audit_logs` intentionally omits foreign key constraints on `org_id`, `actor_id`, and `record_id`. Audit records serve as persistent historical ledgers that survive entity deletions without triggering `ON DELETE CASCADE` history purges or `ON DELETE RESTRICT` blockages.
+
+---
+
+## 7. Testing & Verification
+
+Run the full integration test suite covering tenant boundaries, JWT auth, database role restrictions, RLS policies, `updated_at` triggers, and audit logging:
+```bash
+npm test
+```
+To verify TypeScript compilation:
+```bash
+npm run build
+```

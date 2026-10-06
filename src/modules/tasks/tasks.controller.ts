@@ -14,8 +14,11 @@ export const createTaskController = async (req: Request, res: Response, next: Ne
   const orgId = req.user!.orgId;
   const userId = req.user!.id;
   try {
-    const response = await withTenantContext(orgId, (tx) =>
-      createTask(orgId, userId, data, req.correlationId!, tx)
+    const response = await withTenantContext(
+      orgId,
+      (tx) => createTask(orgId, userId, data, req.correlationId!, tx),
+      undefined,
+      userId
     );
     return successResponse(res, response.code, response.message, response.data, response.meta);
   } catch (error) {
@@ -25,9 +28,13 @@ export const createTaskController = async (req: Request, res: Response, next: Ne
 
 export const listTasksController = async (req: Request, res: Response, next: NextFunction) => {
   const orgId = req.user!.orgId;
+  const userId = req.user?.id;
   try {
-    const response = await withTenantContext(orgId, (tx) =>
-      listTasks(orgId, req.correlationId!, tx)
+    const response = await withTenantContext(
+      orgId,
+      (tx) => listTasks(orgId, req.correlationId!, tx),
+      undefined,
+      userId
     );
     return successResponse(res, response.code, response.message, response.data, response.meta);
   } catch (error) {
@@ -37,10 +44,14 @@ export const listTasksController = async (req: Request, res: Response, next: Nex
 
 export const getTaskController = async (req: Request, res: Response, next: NextFunction) => {
   const orgId = req.user!.orgId;
+  const userId = req.user?.id;
   const taskId = req.params.taskId as string;
   try {
-    const response = await withTenantContext(orgId, (tx) =>
-      getTask(orgId, taskId, req.correlationId!, tx)
+    const response = await withTenantContext(
+      orgId,
+      (tx) => getTask(orgId, taskId, req.correlationId!, tx),
+      undefined,
+      userId
     );
     return successResponse(res, response.code, response.message, response.data, response.meta);
   } catch (error) {
@@ -51,10 +62,14 @@ export const getTaskController = async (req: Request, res: Response, next: NextF
 export const updateTaskController = async (req: Request, res: Response, next: NextFunction) => {
   const data = req.body;
   const orgId = req.user!.orgId;
+  const userId = req.user?.id;
   const taskId = req.params.taskId as string;
   try {
-    const response = await withTenantContext(orgId, (tx) =>
-      updateTask(orgId, taskId, data, req.correlationId!, tx)
+    const response = await withTenantContext(
+      orgId,
+      (tx) => updateTask(orgId, taskId, data, req.correlationId!, tx),
+      undefined,
+      userId
     );
     return successResponse(res, response.code, response.message, response.data, response.meta);
   } catch (error) {
@@ -64,14 +79,19 @@ export const updateTaskController = async (req: Request, res: Response, next: Ne
 
 export const deleteTaskController = async (req: Request, res: Response, next: NextFunction) => {
   const orgId = req.user!.orgId;
+  const userId = req.user?.id;
   const taskId = req.params.taskId as string;
   try {
-    const response = await withTenantContext(orgId, (tx) =>
-      deleteTask(orgId, taskId, req.correlationId!, tx)
+    const response = await withTenantContext(
+      orgId,
+      (tx) => deleteTask(orgId, taskId, req.correlationId!, tx),
+      undefined,
+      userId
     );
     return successResponse(res, response.code, response.message, response.data, response.meta);
   } catch (error) {
     next(error);
   }
 };
+
 
